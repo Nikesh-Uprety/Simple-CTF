@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CTF Login Bypass Challenge</title>
+    <style>
+        body { font-family: sans-serif; padding: 40px; }
+        #flag { display: none; color: green; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>Login Page</h2>
+    <p>Try logging in as admin.</p>
+    <form id="loginForm">
+        <input type="text" name="username" placeholder="Username" /><br><br>
+        <input type="password" name="password" placeholder="Password" /><br><br>
+        <button type="submit">Login</button>
+    </form>
+    <div id="response"></div>
+    <div id="flag">FLAG{bypass_js_auth_api_like_a_pro}</div>
+
+    <script>
+        // Fake API handler
+        async function fakeApiLogin(body, headers) {
+            const params = new URLSearchParams(body);
+            const username = params.get("username");
+            const password = params.get("password");
+            const bypassHeader = headers.get("X-Bypass-Auth");
+
+            // Block form-based login attempts directly
+            if (username === "admin" && bypassHeader === "true") {
+                return { success: true, flag: "FLAG{bypass_js_auth_api_like_a_pro}" };
+            }
+
+            return { success: false, message: "Access denied" };
+        }
+
+        // Intercept all fetch requests to "/api/login"
+        const originalFetch = window.fetch;
+        window.fetch = async function(url, options) {
+            if (url === "/api/login") {
+                const body = options.body;
+                const headers = new Headers(options.headers || {});
+                return {
+                    json: async () => await fakeApiLogin(body, headers)
+                };
+            } else {
+                return originalFetch(url, options);
+            }
+        };
+
+        // Login form behavior
+        const form = document.getElementById('loginForm');
+        const responseDiv = document.getElementById('response');
+        const flagDiv = document.getElementById('flag');
+
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = new FormData(form);
+            const body = new URLSearchParams(formData);
+
+            const res = await fetch("/api/login", {
+                method: "POST",
+                body: body
+                // no header => will be denied
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                responseDiv.innerText = "Welcome, admin!";
+                flagDiv.style.display = "block";
+            } else {
+                responseDiv.innerText = data.message || "Login failed";
+            }
+        });
+    </script>
+</body>
+</html>
